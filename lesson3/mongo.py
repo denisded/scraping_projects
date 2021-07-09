@@ -14,8 +14,17 @@ def write_vacancy_to_mongobd(col):
     col.insert(json_vacancy)
 
 
+def print_vacancy_oklad_big(oklad):
+    cursor = vacancy.find({
+        "oklad": {"$gt": oklad}
+    })
+    for i in cursor:
+        print(i)
+
+
 if __name__ == "__main__":
     with MongoClient(MONGO_HOST, MONGO_PORT) as client:
         db = client[MONGO_DB]
         vacancy = db[MONGO_COLLECTION]
-        write_vacancy_to_mongobd(vacancy)
+        # write_vacancy_to_mongobd(vacancy)
+        print_vacancy_oklad_big(100000)
