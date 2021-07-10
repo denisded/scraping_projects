@@ -1,7 +1,7 @@
 from lxml.html import fromstring
 import requests
 from string import whitespace
-from datetime import datetime
+from pymongo import MongoClient
 
 CUSTOM_WHITESPACE = (whitespace + "\xa0").replace(" ", "")
 
@@ -42,5 +42,60 @@ def get_news_mail_ru():
     return list_news
 
 
+def get_news_lenta_ru():
+    dom_lenta_ru = get_dom('https://lenta.ru/')
+    items = dom_lenta_ru.xpath(
+        '//div[contains(@class, "b-yellow-box__wrap")]/div[not(contains(@class, "b-yellow-box__header"))]'
+    )
+    list_news = []
+    for i in items:
+        info = {
+            'name': list(map(clear_string, i.xpath('.//a/text()'))),
+        }
+        link = 'https://lenta.ru' + str(i.xpath('.//a/@href')[0])
+        source = 'lenta.ru'
+        if i.xpath('.//a/@href')[0][:5] == "https":
+            link = i.xpath('.//a/@href')[0]
+            source = i.xpath('.//a/@href')[0][8:i.xpath('.//a/@href')[0].find(".ru")]
+        info['link'] = link
+        info['source'] = source
+        info['date'] = get_dom(link).xpath('//div[contains(@class, "b-topic__info")]/time/@datetime')
+        list_news.append(info)
+    return list_news
+
+
+def get_news_yandex_ru():
+    dom_lenta_ru = get_dom('https://yandex.ru/')
+    items = dom_lenta_ru.xpath('//ol/li/a')
+    list_news = []
+    for i in items:
+        info = {
+            'name': list(map(clear_string, i.xpath('./@aria-label'))),
+            'link': i.xpath('./@href'),
+            'source': get_dom(
+                i.xpath('./@href')[0]
+            ).xpath('//span[contains(@class, "news-story__subtitle-text")]//text()'),
+            'date': get_dom(get_dom(
+                    i.xpath('./@href')[0]
+                ).xpath('//div[contains(@class, "news-story__head")]/a//@href')[0]
+            ).xpath('//time[contains(@itemprop, "datePublished")]/@datetime')
+        }
+        list_news.append(info)
+    return list_news
+
+
+MONGO_HOST = "localhost"
+MONGO_PORT = 27017
+MONGO_DB = "news"
+MONGO_COLLECTION = "news"
+
 if __name__ == "__main__":
     news_mail_ru = get_news_mail_ru()
+    news_lenta_ru = get_news_lenta_ru()
+    news_yandex_ru = get_news_yandex_ru()
+    with MongoClient(MONGO_HOST, MONGO_PORT) as client:
+        db = client[MONGO_DB]
+        news = db[MONGO_COLLECTION]
+        news.insert_many(news_mail_ru)
+        news.insert_many(news_lenta_ru)
+        news.insert_many(news_yandex_ru)
